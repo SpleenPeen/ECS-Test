@@ -16,41 +16,43 @@ void Scene::Draw(sf::RenderWindow& window)
 
 SafeHouse::SafeHouse()
 {
-    //create a world in the ent manager - necessary for collisions
-    auto wdef = b2DefaultWorldDef();
-    wdef.gravity = b2Vec2_zero;
-    _entMan.CreateWorld(&wdef);
-
-    //define and add a player body
-    b2BodyDef tDef = b2DefaultBodyDef();
-    tDef.position = b2Vec2{12.5, 5};
-    tDef.linearDamping = 60;
-    tDef.type = b2_dynamicBody;
-    auto player = _entMan.CreateEntity();
-    _entMan.add<RigidBody>(player, RigidBody{b2CreateBody(_entMan.GetWorldID(), &tDef)});
-    
-    //add a shape to the player body 
-    b2ShapeDef tsdef = b2DefaultShapeDef();
-    b2Circle cir;
-    cir.center = b2Vec2{0};
-    cir.radius = 3;
-    b2CreateCircleShape(_entMan.get<RigidBody>(player)->bodyID, &tsdef, &cir);
-
     //add other components to the player
     _entMan.add<RenderHitboxes>(player, RenderHitboxes{sf::Color::White});
-    _entMan.add<PlayerMovement>(player, PlayerMovement{300});
+    _entMan.add<PlayerMovement>(player, PlayerMovement{100});
+    _entMan.add<Position>(player, Position{sf::Vector2f(300,300)});
+    _entMan.add<Velocity>(player, Velocity{sf::Vector2f(0,0)});
+    _entMan.add<Friction>(player, Friction{20});
+    _entMan.add<Health>(player, {3, player});
+    _entMan.add<CircleCollider>(player, CircleCollider{30});
     WeaponArsenal playerArsenal;
 
-    playerArsenal.weapons.push_back(Weapon{});
-
-    playerArsenal.weapons[0].bulletRadius = 1;
+    playerArsenal.weapons[0].bulletRadius = 10;
     playerArsenal.weapons[0].bulletSpeed = 100;
     playerArsenal.weapons[0].bulletsShot = 1;
+    playerArsenal.weapons[0].bulletLifetime = 100;
     playerArsenal.weapons[0].damage = 1;
-    playerArsenal.weapons[0].dGroup = damageGroup::player;
-    playerArsenal.weapons[0].fireRate = 10;
+    playerArsenal.weapons[0].dGroup = damageGroup::enemy;
+    playerArsenal.weapons[0].fireRate = 1;
     playerArsenal.weapons[0].pierce = 0;
+
+    playerArsenal.weapons[1].bulletRadius = 20;
+    playerArsenal.weapons[1].bulletSpeed = 100;
+    playerArsenal.weapons[1].bulletsShot = 1;
+    playerArsenal.weapons[1].bulletLifetime = 1;
+    playerArsenal.weapons[1].damage = 1;
+    playerArsenal.weapons[1].dGroup = damageGroup::enemy;
+    playerArsenal.weapons[1].fireRate = 10;
+    playerArsenal.weapons[1].pierce = 0;
 
     _entMan.add<WeaponArsenal>(player, playerArsenal);
     _entMan.add<PlayerWeaponLogic>(player,{});
+
+    //test enemy
+    auto enemy = _entMan.CreateEntity();
+    _entMan.add<RenderHitboxes>(enemy, RenderHitboxes{sf::Color::White});
+    _entMan.add<Position>(enemy, Position{sf::Vector2f(500,300)});
+    _entMan.add<Velocity>(enemy, Velocity{sf::Vector2f(0,0)});
+    _entMan.add<Friction>(enemy, Friction{20});
+    _entMan.add<CircleCollider>(enemy, CircleCollider{30});
+    _entMan.add<Health>(enemy, {10, damageGroup::enemy});
 }

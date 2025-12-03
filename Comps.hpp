@@ -15,26 +15,33 @@ enum damageGroup //to specify who the bullet hits
 
 struct Weapon
 {
-    float fireRate; //bullets per second
-    float fireDelay;
-    int bulletSpeed;
-    int bulletSpread; //degrees of offset
-    int bulletsShot;
-    int damage;
-    int bulletRadius;
-    int pierce;
-    damageGroup dGroup;
+    float fireRate = 0; //bullets per second
+    float fireDelay = 0;
+    int bulletSpeed = 0;
+    int bulletSpread = 0; //degrees of offset
+    int bulletsShot = 0;
+    float bulletLifetime = 0;
+    int damage = 0;
+    int bulletRadius = 0;
+    int pierce = 0;
+    damageGroup dGroup = both;
 };
 
 //can be added to entities
+struct Position
+{
+    sf::Vector2f pos;
+};
+
+struct Velocity
+{
+    sf::Vector2f vel;
+};
+
 struct Health
 {
     int hp = 3;
-};
-
-struct RigidBody
-{
-    b2BodyId bodyID;
+    damageGroup dGroup;
 };
 
 struct RenderHitboxes
@@ -49,8 +56,13 @@ struct PlayerMovement
 
 struct WeaponArsenal
 {
-    std::vector<Weapon> weapons;
+    Weapon weapons[4];
     int selected = 0;
+};
+
+struct CircleCollider
+{
+    int radius;
 };
 
 struct PlayerWeaponLogic
@@ -63,7 +75,13 @@ struct Bullet
     int damage = 1;
     int pierce = 0;
     damageGroup dGroup;
+    float lifeTime;
+};
+
+struct Friction
+{
+    float friction;
 };
 
 //YOU NEED TO ADD YOUR NEW COMPONENTS HERE FOR THEM TO BE AVAILABLE ON THE ENTITIES
-using AllComponents = std::tuple<Health, RigidBody, RenderHitboxes, PlayerMovement, WeaponArsenal, Bullet, PlayerWeaponLogic>;
+using AllComponents = std::tuple<Friction, Position, Velocity, CircleCollider, Health, RenderHitboxes, PlayerMovement, WeaponArsenal, Bullet, PlayerWeaponLogic>;

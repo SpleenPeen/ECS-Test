@@ -112,6 +112,7 @@ public:
 
     template<typename C>
     C* get(Entity e) {
+        if (!entToBit.contains(e)) {return nullptr;} //dont allow access to entities that havent been created yet
         auto& store = storage<C>();
         auto it = store.entityToIndex.find(e);
         if (it == store.entityToIndex.end()) return nullptr;
@@ -122,12 +123,19 @@ public:
     std::vector<Entity> getAllEnt()
     {
         auto& store = storage<C>();
-        return store.indexToEntity;
+        std::vector<Entity> actualList; //prevent returning not yet created entities
+        for (auto ent : store.indexToEntity)
+        {
+            if (!entToBit.contains(ent)) { continue; }
+            actualList.push_back(ent);
+        }
+        return actualList;
     }
 
     template<typename... C>
     bool has(Entity e) 
     {
+        if (!entToBit.contains(e)) { return false; }
         return (entToBit[e].test(Index<C, AllComponents>::value) && ...);
     }
 

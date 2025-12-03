@@ -15,12 +15,16 @@ class EntityManager : public Registry
             {
                 auto curEnt = ent.first;
                 
+                HandleVelocity(curEnt, dt);
+                HandleFriction(curEnt, dt);
                 HandlePlayerMovement(curEnt);
                 HandlePlayerWeapons(curEnt);
                 ShootDelay(curEnt, dt);
+                BulletLifeTime(curEnt, dt);
+                HandleHealth(curEnt);
+                HandleBulletColls(curEnt);
             }
             HandleCreationAndDestruction();
-            b2World_Step(_worldID, 0.016f, 4);
         }
 
         void Draw(sf::RenderWindow &window)
@@ -32,83 +36,48 @@ class EntityManager : public Registry
             }
         }
 
-        b2WorldId GetWorldID()
-        {
-            return _worldID;
-        }
-
-        void CreateWorld(b2WorldDef *worldDef)
-        {
-            _worldID = b2CreateWorld(worldDef);
-        }
     private:
-        b2WorldId _worldID;
-
-        //this is used in the drawhitboxes method
-        sf::Vector2f GetPolySize(b2Polygon poly)
+        void HandleVelocity(Entity ent, const float &dt)
         {
-            //returns the size of a polygon (in b2 scale)
-            sf::Vector2f xRange = sf::Vector2f(poly.vertices[0].x, poly.vertices[0].x);
-            sf::Vector2f yRange = sf::Vector2f(poly.vertices[0].y, poly.vertices[0].y);
-            for (int i = 1; i < sizeof(poly.vertices)/sizeof(b2Vec2); i++)
+            if (has<Position, Velocity>(ent))
             {
-                if (poly.vertices[i].x < xRange.x) {xRange.x = poly.vertices[i].x;}
-                else if (poly.vertices[i].x > xRange.y) {xRange.y = poly.vertices[i].x;}
-
-                if (poly.vertices[i].y < yRange.x) {yRange.x = poly.vertices[i].y;}
-                else if (poly.vertices[i].y > yRange.y) {yRange.y = poly.vertices[i].y;}
+                get<Position>(ent)->pos += get<Velocity>(ent)->vel*dt;
             }
-            return sf::Vector2f(xRange.y-xRange.x, yRange.y-yRange.x);
+        }
+
+        void HandleFriction(Entity ent, const float &dt)
+        {
+            if (has<Velocity, Friction>(ent))
+            {
+                auto vel = get<Velocity>(ent);
+                vel->vel -= (get<Friction>(ent)->friction*vel->vel)*dt;
+            }
         }
 
         void DrawHitboxes(sf::RenderWindow &window, Entity ent)
         {
-            if (has<RigidBody, RenderHitboxes>(ent))
+            if (has<CircleCollider, RenderHitboxes, Position>(ent))
             {
-                auto id = get<RigidBody>(ent)->bodyID;
+                auto collider = get<CircleCollider>(ent);
+                auto pos = get<Position>(ent);
+                auto render = get<RenderHitboxes>(ent);
 
-                //can only render a circle or a square (ADD ROTATION BTW YOU MORON)
-                int shapeCount = b2Body_GetShapeCount(id);
-                b2ShapeId shapeIDs[shapeCount];
-                b2Body_GetShapes(id, shapeIDs, shapeCount);
+                sf::CircleShape cir;
+                cir.setRadius(collider->radius);
+                cir.setPosition(pos->pos);
+                cir.setOrigin(sf::Vector2f(cir.getRadius(), cir.getRadius()));
+                cir.setFillColor(render->col);
 
-                for (int i = 0; i < shapeCount; i++)
-                {
-                    auto type = b2Shape_GetType(shapeIDs[0]);
-
-                    if (type == b2_polygonShape)
-                    {
-                        auto rectB2 = b2Shape_GetPolygon(shapeIDs[i]);
-                        sf::RectangleShape rectSF;
-                        auto posB2 = b2Body_GetTransform(id);
-                        rectSF.setPosition(posB2.p.x*32, posB2.p.y*32);
-                        auto size = GetPolySize(rectB2);
-                        rectSF.setSize(sf::Vector2f(size.x*32, size.y*32));
-                        rectSF.setOrigin(size.x*32/2, size.y*32/2);
-                        rectSF.setFillColor(get<RenderHitboxes>(ent)->col);
-
-                        window.draw(rectSF);
-                    }
-                    else if (type == b2_circleShape)
-                    {
-                        auto cirB2 = b2Shape_GetCircle(shapeIDs[i]);
-                        sf::CircleShape cirSF;
-                        auto posB2 = b2Body_GetTransform(id);
-                        cirSF.setPosition(posB2.p.x*32, posB2.p.y*32);
-                        cirSF.setRadius(cirB2.radius*32);
-                        cirSF.setFillColor(get<RenderHitboxes>(ent)->col);
-                        cirSF.setOrigin(cirB2.radius*32,cirB2.radius*32);
-                        window.draw(cirSF);
-                    }
-                }
+                auto curPos = cir.getPosition();
+                window.draw(cir);
             }
         }
 
         void HandlePlayerMovement(Entity ent)
         {
-            if (has<PlayerMovement, RigidBody>(ent))
+            if (has<PlayerMovement, Velocity, Position>(ent))
             {
-                b2Vec2 dir{ 0.f, 0.f };
+                sf::Vector2f dir = {0,0};
 
                 // Basic WASD / Arrow movement input
                 if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) ||
@@ -124,79 +93,107 @@ class EntityManager : public Registry
                 {
                     // Normalise direction so diagonal speed isn�t faster
                     const float len = std::sqrt(dir.x * dir.x + dir.y * dir.y);
-                    dir.x /= len;
-                    dir.y /= len;
+                    dir /= len;
 
                     //multiply by movespd
                     auto spd = get<PlayerMovement>(ent)->moveSpd;
-                    dir.x *= spd;
-                    dir.y *= spd;
-
-                    b2Body_ApplyLinearImpulseToCenter(get<RigidBody>(ent)->bodyID, dir, true);
+                    auto vel = &get<Velocity>(ent)->vel;
+                    *vel += dir*(float)spd;
                 }
             }
         }
     
         void HandlePlayerWeapons(Entity ent)
         {
-            if (has<RigidBody, PlayerWeaponLogic, WeaponArsenal>(ent))
+            if (has<PlayerWeaponLogic, WeaponArsenal, Position>(ent))
             {
                 auto arsenal = get<WeaponArsenal>(ent);
-                auto selected = get<WeaponArsenal>(ent)->selected;
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad1)) { selected = 0; }
-                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad2)) { selected = 1; }
-                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad3)) { selected = 2; }
-                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad4)) { selected = 3; }
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num1)) { arsenal->selected = 0; }
+                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num2)) { arsenal->selected  = 1; }
+                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num3)) { arsenal->selected  = 2; }
+                else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num4)) { arsenal->selected  = 3; }
+
+                arsenal->selected = std::min(arsenal->selected, (int)(sizeof(arsenal->weapons)/sizeof(Weapon))-1);
 
                 //dont shoot if mouse button not pressed, or gun on cd
-                auto weapon = &arsenal->weapons[selected]; 
+                auto weapon = &arsenal->weapons[arsenal->selected]; 
+                if (weapon->bulletRadius <= 0) { return; } //to prevent non defined weapons from shooting
                 if (!sf::Mouse::isButtonPressed(sf::Mouse::Left)) { return; }
                 if (weapon->fireDelay > 0) { return; }
                 for (int i = 0; i < weapon->bulletsShot; i++)
                 {
-                auto mousePos = MouseHelper::GetMousePos();
-                    b2Vec2 dir = b2Vec2{mousePos.x/32, mousePos.y/32} - b2Body_GetPosition(get<RigidBody>(ent)->bodyID);
+                    auto mousePos = MouseHelper::GetMousePos();
+                    auto dir = (sf::Vector2f)mousePos - get<Position>(ent)->pos;
                     auto magnitude = std::sqrt(dir.x * dir.x + dir.y * dir.y);
-                    dir.x /= magnitude;
-                    dir.y /= magnitude;
+                    dir /= magnitude;
 
-                    auto parentID = get<RigidBody>(ent)->bodyID;
                     auto curBullet = CreateEntity();
-                    auto bodyDef = b2DefaultBodyDef();
-                    bodyDef.type = b2_dynamicBody;
-
-                    bodyDef.position = b2Body_GetPosition(parentID);
-                    add<RigidBody>(curBullet, RigidBody{b2CreateBody(_worldID, &bodyDef)});
-                    auto shapeDef = b2DefaultShapeDef();
-                    b2Circle cir;
-                    cir.center = b2Vec2_zero;
-                    cir.radius = weapon->bulletRadius;
-                    b2CreateCircleShape(get<RigidBody>(curBullet)->bodyID, &shapeDef, &cir);
-                    add<Bullet>(curBullet, Bullet{weapon->damage, weapon->pierce, weapon->dGroup});
-                    
-                    dir *= weapon->bulletSpeed;
-                    b2Body_ApplyLinearImpulseToCenter(get<RigidBody>(curBullet)->bodyID, dir, true);
-
-                    auto fdef = b2DefaultFilterJointDef();
-                    fdef.bodyIdA = parentID;
-                    fdef.bodyIdB = get<RigidBody>(curBullet)->bodyID;
-                    b2CreateFilterJoint(_worldID, &fdef);
-
+                    add<Position>(curBullet, {get<Position>(ent)->pos});
+                    add<Bullet>(curBullet, Bullet{weapon->damage, weapon->pierce, weapon->dGroup, weapon->bulletLifetime});
+                    add<Velocity>(curBullet, {dir * (float)weapon->bulletSpeed});
                     add<RenderHitboxes>(curBullet, RenderHitboxes{sf::Color::Green});
+                    add<CircleCollider>(curBullet, {weapon->bulletRadius});
                 }
                 weapon->fireDelay = 1.f/weapon->fireRate;
             }
         }
     
+        void BulletLifeTime(Entity ent, const float &dt)
+        {
+            if (has<Bullet>(ent))
+            {
+                auto bul = get<Bullet>(ent);
+                bul->lifeTime -= dt;
+
+                if (bul->lifeTime <= 0)
+                {
+                    Destroy(ent);
+                }
+            }
+        }
+
+        void HandleHealth(Entity ent)
+        {
+            if (has<Health>(ent))
+            {
+                auto health = get<Health>(ent);
+                if (health->hp <= 0)
+                {
+                    Destroy(ent);
+                }
+            }
+        }
+
+        void HandleBulletColls(Entity ent)
+        {
+            if (has<Bullet>(ent)){return;}
+            if (!has<Health, CircleCollider, Position>(ent)){return;}
+            auto bullets = getAllEnt<Bullet>();
+            auto eCol = get<CircleCollider>(ent);
+            auto eHP = get<Health>(ent);
+            auto ePos = get<Position>(ent);
+            for (auto curBul : bullets)
+            {
+                if (!has<CircleCollider, Position>(curBul)){continue;}
+                auto bul = get<Bullet>(curBul);
+                if (bul->dGroup != eHP->dGroup){continue;}
+                auto dist = ePos->pos - get<Position>(curBul)->pos;
+                if (std::sqrt(dist.x * dist.x + dist.y * dist.y) > (eCol->radius + get<CircleCollider>(curBul)->radius)){continue;;}
+                eHP->hp -= bul->damage;
+                Destroy(curBul);
+                
+            }
+        }
+
         void ShootDelay(Entity ent, const float &dt)
         {
             if(has<WeaponArsenal>(ent))
             {
                 auto arsenal = get<WeaponArsenal>(ent);
 
-                for (int i = 0; i < arsenal->weapons.size(); i++)
+                for (int i = 0; i < (int)(sizeof(arsenal->weapons)/sizeof(Weapon)); i++)
                 {
-                    auto weapon = &arsenal->weapons[0];
+                    auto weapon = &arsenal->weapons[i];
                     if (weapon->fireDelay <= 0) {continue;}
                     weapon->fireDelay = std::max(0.f, weapon->fireDelay - dt);
                 }
