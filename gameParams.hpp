@@ -3,6 +3,6 @@
 struct Params
 {
     static constexpr int gameW = 800;
-    static constexpr int gameH = 608;
-    static constexpr int sprtSize = 32;
+    static constexpr int gameH = 600;
+    static constexpr int b2ScaleFactor = 32;
 };

@@ -8,37 +8,54 @@
 #include "gameSys.hpp"
 #include "gameParams.hpp"
 #include "Systems.hpp"
+#include "Scenes.hpp"
+#include "tile_level_loader/level_system.hpp"
 
-EntityManager mgr;
-sf::RectangleShape check;
+using ls = LevelSystem;
 
-Entity player;
-Entity enemy;
+enum Screen
+{
+    other,
+    ts  
+};
+
+SafeHouse sfScene;
+
+Screen curScreen;
 
 void GameSys::init()
 {
-    player = mgr.CreateEntity();
-    mgr.add<Health>(player, Health{5});
-    mgr.add<Position>(player, Position{100,100});
-    mgr.add<Velocity>(player, Velocity{100,100});
-    mgr.add<Rect>(player, Rect{sf::RectangleShape(sf::Vector2f(50,50))});
-
-    enemy = mgr.CreateEntity();
-    mgr.add<Health>(enemy, Health{1});
-    mgr.add<Position>(enemy, Position{300,100});
-    mgr.add<Circle>(enemy, Circle{sf::CircleShape(20)});
-    mgr.add<Velocity>(enemy, Velocity{100,100});
-    mgr.add<EnemyMovement>(enemy, EnemyMovement{100, player});
+    sfScene = SafeHouse();
+    curScreen = ts;
+    ls::set_color(ls::EMPTY, sf::Color(10, 10, 30));
+    ls::set_color(ls::WALL, sf::Color(60, 60, 80));
+    ls::set_color(ls::WAYPOINT, sf::Color(120, 120, 120));
+    ls::set_color(ls::START, sf::Color(80, 255, 80));
+    ls::set_color(ls::END, sf::Color(255, 80, 80));
+    ls::get_height();
+    ls::get_width();
+    ls::load_level("res/levels/td_1.txt", 50);
 }
 
 void GameSys::update(const float &dt) 
 {
-    mgr.Update(dt);
+    switch (curScreen)
+    {
+        case ts:
+            sfScene.Update(dt);
+            break;
+    }
 }
 
 void GameSys::render(sf::RenderWindow &window) 
 {
-    mgr.Draw(window);
+    ls::render(window);
+    switch (curScreen)
+    {
+        case ts:
+            sfScene.Draw(window);
+            break;
+    }
 }
 
 void GameSys::clean()

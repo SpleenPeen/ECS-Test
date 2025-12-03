@@ -58,7 +58,6 @@ protected:
 
     void HandleCreationAndDestruction() //this is to prevent adding or deleting entities mid loop
     {
-        std::cout<<toAdd.size()<<"\n";
         //addition
         for (auto e : toAdd)
         {

@@ -6,6 +6,7 @@
 #include "gameSys.hpp"
 #include "gameParams.hpp"
 #include <tuple>
+#include "MouseHelper.hpp"
 
 int test;
 
@@ -15,6 +16,8 @@ int main () {
 	//create the window
 	sf::RenderWindow window(sf::VideoMode({Params::gameW, Params::gameH}), "Space Invaders");
 	window.setVerticalSyncEnabled(true);
+
+	MouseHelper::SetWindow(&window);
 
     //initialise and load
 	GameSys::init();
