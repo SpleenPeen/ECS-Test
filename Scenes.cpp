@@ -31,8 +31,10 @@ SafeHouse::SafeHouse()
     playerArsenal.weapons.push_back(Weapon{});
     playerArsenal.weapons[0].bulletRadius = 10;
     playerArsenal.weapons[0].bulletSpeed = 200;
-    playerArsenal.weapons[0].bulletsShot = 1;
+    playerArsenal.weapons[0].bulletsShot = 5;
+    playerArsenal.weapons[0].speedVariation = 100;
     playerArsenal.weapons[0].bulletLifetime = 100;
+    playerArsenal.weapons[0].bulletSpread = 45;
     playerArsenal.weapons[0].damage = 1;
     playerArsenal.weapons[0].dGroup = damageGroup::enemy;
     playerArsenal.weapons[0].fireRate = 2;

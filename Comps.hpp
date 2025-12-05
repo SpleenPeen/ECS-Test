@@ -22,6 +22,7 @@ struct Weapon
     int bulletSpeed = 0;
     int bulletSpread = 0; //degrees of offset
     int bulletsShot = 0;
+    int speedVariation = 0;
     float bulletLifetime = 0;
     int damage = 0;
     int bulletRadius = 0;

@@ -144,7 +144,10 @@ class EntityManager : public Registry
                 auto curBullet = CreateEntity();
                 add<Position>(curBullet, Position{spawnPos});
                 add<Bullet>(curBullet, Bullet{weapon->damage, weapon->pierce, weapon->dGroup, weapon->bulletLifetime});
-                add<Velocity>(curBullet, {dir * (float)weapon->bulletSpeed});
+                auto newAngle = (std::atan2f(dir.y, dir.x)*180/M_PI + (rand() % (weapon->bulletSpread+1) - weapon->bulletSpread/2))*M_PI/180;
+                auto newDir = sf::Vector2f(std::cosf(newAngle), std::sinf(newAngle));
+
+                add<Velocity>(curBullet, {newDir * (float)(weapon->bulletSpeed+(rand() % (weapon->speedVariation*2+1))-weapon->speedVariation/2)});
                 add<CircleCollider>(curBullet, {weapon->bulletRadius});
                 //this is added for testing purposes
                 sf::Color col = sf::Color::Red;
