@@ -170,4 +170,10 @@ public:
     {
         toRemove.push_back(e);
     }
+
+    bool Exists(Entity e)
+    {
+        if (entToBit.find(e) == entToBit.end()){return false;}
+        return true;
+    }
 };

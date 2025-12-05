@@ -5,6 +5,7 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <cmath>
+#include "gameParams.hpp"
 
 class EntityManager : public Registry
 {
@@ -23,6 +24,8 @@ class EntityManager : public Registry
                 BulletLifeTime(curEnt, dt);
                 HandleHealth(curEnt);
                 HandleBulletColls(curEnt);
+                HandleEnemySafeMove(curEnt);
+                HandleEnemyShooting(curEnt, dt);
             }
             HandleCreationAndDestruction();
         }
@@ -77,6 +80,8 @@ class EntityManager : public Registry
         {
             if (has<PlayerMovement, Velocity, Position>(ent))
             {
+                //clamp movement to screen
+                ClampToScreen(ent);
                 sf::Vector2f dir = {0,0};
 
                 // Basic WASD / Arrow movement input
@@ -113,29 +118,41 @@ class EntityManager : public Registry
                 else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num3)) { arsenal->selected  = 2; }
                 else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num4)) { arsenal->selected  = 3; }
 
-                arsenal->selected = std::min(arsenal->selected, (int)(sizeof(arsenal->weapons)/sizeof(Weapon))-1);
+                arsenal->selected = std::min(arsenal->selected, (int)arsenal->weapons.size()-1);
 
-                //dont shoot if mouse button not pressed, or gun on cd
-                auto weapon = &arsenal->weapons[arsenal->selected]; 
-                if (weapon->bulletRadius <= 0) { return; } //to prevent non defined weapons from shooting
+                //shootgun
                 if (!sf::Mouse::isButtonPressed(sf::Mouse::Left)) { return; }
-                if (weapon->fireDelay > 0) { return; }
-                for (int i = 0; i < weapon->bulletsShot; i++)
-                {
-                    auto mousePos = MouseHelper::GetMousePos();
-                    auto dir = (sf::Vector2f)mousePos - get<Position>(ent)->pos;
-                    auto magnitude = std::sqrt(dir.x * dir.x + dir.y * dir.y);
-                    dir /= magnitude;
-
-                    auto curBullet = CreateEntity();
-                    add<Position>(curBullet, {get<Position>(ent)->pos});
-                    add<Bullet>(curBullet, Bullet{weapon->damage, weapon->pierce, weapon->dGroup, weapon->bulletLifetime});
-                    add<Velocity>(curBullet, {dir * (float)weapon->bulletSpeed});
-                    add<RenderHitboxes>(curBullet, RenderHitboxes{sf::Color::Green});
-                    add<CircleCollider>(curBullet, {weapon->bulletRadius});
-                }
-                weapon->fireDelay = 1.f/weapon->fireRate;
+                auto weapon = &arsenal->weapons[arsenal->selected]; 
+                auto mousePos = MouseHelper::GetMousePos();
+                auto pos = get<Position>(ent);
+                Shoot(weapon, (sf::Vector2f)mousePos, pos->pos);
             }
+        }
+
+        bool Shoot(Weapon* weapon, sf::Vector2f target, sf::Vector2f spawnPos, int range = -1)//-1 means doesn't care
+        {
+            if (weapon->bulletRadius <= 0) { return false; } //to prevent non defined weapons from shooting
+            if (weapon->fireDelay > 0) { return false; }
+
+            auto dir = target - spawnPos;
+            auto magnitude = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+            if (range >= 0 && magnitude > range) {return false;}
+            dir /= magnitude;
+
+            for (int i = 0; i < weapon->bulletsShot; i++)
+            {
+                auto curBullet = CreateEntity();
+                add<Position>(curBullet, Position{spawnPos});
+                add<Bullet>(curBullet, Bullet{weapon->damage, weapon->pierce, weapon->dGroup, weapon->bulletLifetime});
+                add<Velocity>(curBullet, {dir * (float)weapon->bulletSpeed});
+                add<CircleCollider>(curBullet, {weapon->bulletRadius});
+                //this is added for testing purposes
+                sf::Color col = sf::Color::Red;
+                if (weapon->dGroup == enemy) { col = sf::Color::Green; }
+                add<RenderHitboxes>(curBullet, RenderHitboxes{col});
+            }
+            weapon->fireDelay = 1.f/weapon->fireRate;
+            return true;
         }
     
         void BulletLifeTime(Entity ent, const float &dt)
@@ -191,12 +208,71 @@ class EntityManager : public Registry
             {
                 auto arsenal = get<WeaponArsenal>(ent);
 
-                for (int i = 0; i < (int)(sizeof(arsenal->weapons)/sizeof(Weapon)); i++)
+                for (int i = 0; i < (int)arsenal->weapons.size(); i++)
                 {
                     auto weapon = &arsenal->weapons[i];
                     if (weapon->fireDelay <= 0) {continue;}
                     weapon->fireDelay = std::max(0.f, weapon->fireDelay - dt);
                 }
             }
+        }
+    
+        void HandleEnemySafeMove(Entity ent)
+        {
+            if (!has<EnemySafeMove, WeaponArsenal, Velocity, Position>(ent)){return;}
+            if (has<EnemyShootingLogic>(ent))
+            {
+                if(get<EnemyShootingLogic>(ent)->moveTimer > 0) {return;}
+            }
+            //clamp movement to screen
+            ClampToScreen(ent);
+            auto enemyMove = get<EnemySafeMove>(ent);
+            if (!Exists(enemyMove->target)){return;}
+
+            auto vel = get<Velocity>(ent);
+
+            sf::Vector2f dir = get<Position>(enemyMove->target)->pos - get<Position>(ent)->pos;
+            float dist = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+
+            if (dist <= enemyMove->range[get<WeaponArsenal>(ent)->selected]) {return;}
+            dir /= dist;
+            vel->vel += dir * (float)enemyMove->moveSpd;
+        }
+
+        void ClampToScreen(Entity ent)
+        {
+            if (!has<Position>(ent)){return;}
+
+            float offest = 0;
+            if (has<CircleCollider>(ent))
+            {
+                offest = get<CircleCollider>(ent)->radius;
+            }
+
+            auto pos = get<Position>(ent);
+            pos->pos.x = std::clamp(pos->pos.x, offest, (float)Params::gameW-offest);
+            pos->pos.y = std::clamp(pos->pos.y, offest, (float)Params::gameH-offest);
+        }
+    
+        void HandleEnemyShooting(Entity ent, const float& dt)
+        {
+            if (!has<Position, EnemyShootingLogic, WeaponArsenal>(ent)){return;}
+            auto shootLog = get<EnemyShootingLogic>(ent);
+            if (shootLog->moveTimer > 0) {shootLog->moveTimer -= dt;}
+            if (!Exists(shootLog->target)) {return;}
+            if (!has<Position>(shootLog->target)){return;}
+            auto weaponArse = get<WeaponArsenal>(ent);
+            int range = -1;
+            if (has<EnemySafeMove>(ent))
+            {
+                auto sigma = get<EnemySafeMove>(ent)->range[weaponArse->selected];
+                range = get<EnemySafeMove>(ent)->range[weaponArse->selected];
+            }
+            if (Shoot(&weaponArse->weapons[weaponArse->selected], get<Position>(shootLog->target)->pos, get<Position>(ent)->pos, range))
+            {
+                if (shootLog->moveDelay <= 0){return;}
+                shootLog->moveTimer = shootLog->moveDelay;
+            }
+            
         }
     };

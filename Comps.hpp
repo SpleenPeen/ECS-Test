@@ -4,11 +4,13 @@
 #include <box2d/box2d.h>
 #include <vector>
 
+using Entity = uint32_t;
+
 //supporting structs and enums
 
 enum damageGroup //to specify who the bullet hits
 {
-    player,
+    friendly,
     enemy,
     both
 };
@@ -56,8 +58,8 @@ struct PlayerMovement
 
 struct WeaponArsenal
 {
-    Weapon weapons[4];
     int selected = 0;
+    std::vector<Weapon> weapons;
 };
 
 struct CircleCollider
@@ -83,5 +85,24 @@ struct Friction
     float friction;
 };
 
+struct EnemySafeMove
+{
+    Entity target;
+    bool walkAndShoot;
+    int moveSpd;
+    std::vector<int> range;
+};
+
+struct EnemyShootingLogic
+{
+    float moveDelay; //amount of time to stand still after a shot
+    Entity target;
+    float moveTimer = 0;
+};
+
 //YOU NEED TO ADD YOUR NEW COMPONENTS HERE FOR THEM TO BE AVAILABLE ON THE ENTITIES
-using AllComponents = std::tuple<Friction, Position, Velocity, CircleCollider, Health, RenderHitboxes, PlayerMovement, WeaponArsenal, Bullet, PlayerWeaponLogic>;
+using AllComponents = std::tuple
+<
+    EnemyShootingLogic, EnemySafeMove, Friction, Position, Velocity, CircleCollider, 
+    Health, RenderHitboxes, PlayerMovement, WeaponArsenal, Bullet, PlayerWeaponLogic
+>;
